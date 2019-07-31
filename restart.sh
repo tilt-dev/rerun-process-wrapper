@@ -11,5 +11,12 @@
 #   To restart the container:
 #   ./restart.sh
 
+set -u
+
 touch restart.txt
-kill $(cat process.txt)
+PID="$(cat process.txt)"
+if [[ $? -ne 0 ]]; then
+  echo "unable to read process.txt. was your process started with start.sh?"
+  exit 1
+fi
+kill "$PID"
