@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 #
 # A helper script to implement restart_container when the docker runtime isn't available.
 #
