@@ -1,24 +1,32 @@
-# Rerunning your process via `live_update`
-## i.e., simulating [`restart_container()`](https://docs.tilt.dev/live_update_reference.html#restart_container) on non-Docker clusters
+# Restarting Your Process Via `live_update`
 
-As of 6/28/19: `restart_container()`, a command that can be passed to a `live_update`, doesn't work on non-Docker clusters. However there's a workaround available to simulate `restart_container()`'s functionality. It's used in [the onewatch integration test](https://github.com/windmilleng/tilt/tree/master/integration/onewatch) so that the test passes on non-Docker clusters. Here's how to do it yourself:
+Tilt's Live Update functionality allows you to copy files to, and run commands on, running containers. Some apps or invocations thereof (e.g. Javascript apps run via `nodemon`, or Flask apps run in debug mode) detect and incorporate code changes without needing to restart. For other apps, though, you’ll need to restart them for changes to take effect.
+
+This set of scripts is one way to restart your process as part of a Live Update.
+
+For more information on restarting processes during Live Update, [see the docs](https://docs.tilt.dev/live_update_reference.html#restarting-your-process)
+
+## How to Use These Scripts
+
+For an example, see the [the onewatch integration test](https://github.com/windmilleng/tilt/tree/master/integration/onewatch).
 
 Copy `start.sh` and `restart.sh` to your container working dir.
 
-If your container entrypoint *was* `path-to-binary [arg1] [arg2]...`, change it to:
+If your container entrypoint *was* `path/to/binary [arg1] [arg2]...`, change it to:
 ```
-./start.sh path-to-binary [arg1] [arg2]...
+./start.sh path/to/binary [arg1] [arg2]...
 ```
 
-To restart the container, instead of including Live Update step `restart_container()`, use:
-`run('./restart.sh')`
+(The `entrypoint` parameter on `docker_build`/`custom_build` is a lightweight way to do this.)
+
+To restart the container as part of your Live Update, use a `run` step that calls the restart script: `run('./restart.sh')`
 
 So, for example:
 
 ```python
 docker_build('gcr.io/windmill-test-containers/integration/onewatch',
     '.',
-    dockerfile='Dockerfile',
+    entrypoint=['./start.sh', '/go/bin/onewatch'],
     live_update=[
         sync('.', '/go/src/github.com/windmilleng/tilt/integration/onewatch'),
         run('go install github.com/windmilleng/tilt/integration/onewatch'),
@@ -27,3 +35,25 @@ docker_build('gcr.io/windmill-test-containers/integration/onewatch',
 ```
 
 This live update will cause the `go install` to be run in the container every time anything in the `.` path locally changes. After the `go install` is run, `./restart.sh` will be run. This will kill the original entrypoint, and restart it, effectively simulating the `container_restart()` functionality on Docker.
+
+## Non-Supported Cases
+
+### Containers Without Shell
+At the risk of stating the obvious: your container needs to have shell available to run these shell scripts.
+
+These scripts look for a shell at `/bin/sh`; if your shell lives elsewhere, you have to explicitly invoke the scripts with that shell, e.g.:
+```python
+docker_build(...,
+    entrypoint=['/busybox/sh', './start.sh', 'path/to/binary'],
+    ...
+)
+```
+
+### Arbitrary Shell Commands/Child Processes
+You may encounter difficulties using these scripts to run arbitrary shell commands. E.g. an invocation like:
+```bash
+./start.sh /bin/sh -c 'ls | path/to/binary'
+```
+will not be handled correctly. We recommend only using `start.sh` to run commands passable as program name + list of args.
+
+For other commands that spawn child processes, these scripts will only work as well as signal handling between your parent and child processes; use with care.
