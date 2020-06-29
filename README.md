@@ -49,11 +49,7 @@ docker_build(...,
 )
 ```
 
-### Arbitrary Shell Commands/Child Processes
-You may encounter difficulties using these scripts to run arbitrary shell commands. E.g. an invocation like:
-```bash
-./start.sh /bin/sh -c 'ls | path/to/binary'
-```
-will not be handled correctly. We recommend only using `start.sh` to run commands passable as program name + list of args.
+### Subprocesses (Not Necessarily Supported)
+These scripts will only work as well as signal handling between your parent process and its subprocesses; use with care.
 
-For other commands that spawn child processes, these scripts will only work as well as signal handling between your parent and child processes; use with care.
+Specifically, `restart.sh` only knows how to kill the top-level process invoked by `start.sh`; it's up to that process to clean up its subprocesses on receiving `SIGTERM`, or else you'll be left with orphans.
